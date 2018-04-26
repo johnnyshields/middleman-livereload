@@ -13,8 +13,6 @@ module Middleman
     option :js_host, nil, 'Host to connect LiveReload Javascript to (if different than :host)'
     option :livereload_css_target, 'stylesheets/all.css', 'CSS file to load when a @imported CSS partials are modified'
     option :livereload_css_pattern, Regexp.new('_.*\.css'), 'Regexp matching filenames that trigger live reloading target'
-    option :wss_certificate, nil, 'Path to an X.509 certificate to use for the websocket server'
-    option :wss_private_key, nil, 'Path to an RSA private key for the websocket certificate'
 
     def initialize(app, options_hash={}, &block)
       super
@@ -37,8 +35,6 @@ module Middleman
       livereload_css_target = options.livereload_css_target
       livereload_css_pattern = options.livereload_css_pattern
 
-      extension = self
-
       app.ready do
         if @reactor
           @reactor.app = self
@@ -46,13 +42,8 @@ module Middleman
           @reactor = ::Middleman::LiveReload::Reactor.new(options_hash, self)
         end
 
-        ignored = lambda do |file|
-          return true if files.respond_to?(:ignored?) && files.send(:ignored?, file)
-          ignore.any? { |i| file.to_s.match(i) }
-        end
-
-        files.changed do |file|
-          next if ignored.call(file)
+        app.files.changed do |file|
+          next if files.respond_to?(:ignored?) && files.send(:ignored?, file)
 
           logger.debug "LiveReload: File changed - #{file}"
 
@@ -76,8 +67,8 @@ module Middleman
           @reactor.reload_browser(reload_path)
         end
 
-        files.deleted do |file|
-          next if ignored.call(file)
+        app.files.deleted do |file|
+          next if files.respond_to?(:ignored?) && files.send(:ignored?, file)
 
           logger.debug "LiveReload: File deleted - #{file}"
 
@@ -86,7 +77,7 @@ module Middleman
 
         # Use the vendored livereload.js source rather than trying to get it from Middleman
         # https://github.com/johnbintz/rack-livereload#which-livereload-script-does-it-use
-        use ::Rack::LiveReload, port: js_port, host: js_host, no_swf: no_swf, source: :vendored, ignore: ignore
+        app.use ::Rack::LiveReload, port: js_port, host: js_host, no_swf: no_swf, source: :vendored, ignore: ignore
       end
     end
   end
